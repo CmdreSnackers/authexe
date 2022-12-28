@@ -1,21 +1,31 @@
 <?php
 session_start();
+if(!isset($_SESSION['login_csrf_token'])) {
+    $_SESSION['login_csrf_token'] = bin2hex(random_bytes(32));
+}
+
 //connect to db
 
+// $_SESSION['user'] = [
+//     'id' == 1,
+//     'name' => 'John'
+// ];
 $database = new PDO(
     'mysql:host=devkinsta_db;dbname=authexe',
     'root',
     'WSC2rkMYbGqpj0v7'
 );
 
-// make sure its form POST request
 if($_SERVER['REQUEST_METHOD'] === 'POST') {
-    //trigger signup
+    if($_POST['login_csrf_token'] !== $_SESSION['login_csrf_token']) {
+        die("You Lose");
+    }
+    unset($_SESSION['login_csrf_token']);
+    //trigger login
     $email = $_POST['email'];
     $password = $_POST['password'];
-    $confirm_password = $_POST['confirm_password'];
 
-    // make sure user email isn't already inside
+// find user in database with email
     $statement = $database->prepare(
         'SELECT * FROM users WHERE email = :email'
     );
@@ -27,56 +37,38 @@ if($_SERVER['REQUEST_METHOD'] === 'POST') {
     // fetch one result from database
     $user = $statement->fetch();
 
-    // if user exist return error
-
+    // if $user is true means user exist
     if ($user) {
-        echo 'email already exists';
+        // check password
+        if( password_verify($password, $user['password']) ) {
+            $_SESSION['user'] = [
+                'id' => $user['id'],
+                'email' => $user['email']
+            ];
+
+            header('Location: /');
+            exit;
+        } else {
+            echo 'Invalid email or password';
+        }
     } else {
-        $statement = $database->prepare(
-            'INSERT INTO users (email, password)
-            VALUES (:email, :password )'
-        );
-        $statement->execute([
-            'email' => $email,
-            'password' => password_hash( $password,
-            PASSWORD_DEFAULT )
-        ]);
-        // redirect back to login
-        header('Location: /login.php');
-        exit;
+        // or user doesn't exist
+        echo 'invalid email or password';
     }
 
-// insert user data into database
-    // $statement = $database->prepare(
-    //     'INSERT INTO users (email, password)
-    //     VALUES (:email, :password )'
-    // );
-    // $statement->execute([
-    //     'email' => $email,
-    //     'password' => password_hash( $password,
-    //     PASSWORD_DEFAULT )
-    // ]);
 
-    // echo 'Sucessfully Registered';
 }
 
-
-
-
-
-
-
-
-
-
 ?>
+
+
 
 
 <!DOCTYPE html>
 <html>
 
 <head>
-    <title>Simple Auth - Sign Up</title>
+    <title>Simple Auth - Login</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet"
         integrity="sha384-rbsA2VBKQhggwzxH7pPCaAqO46MgnOM80zW1RWuH61DGLwZJEdK2Kadq2F9CUG65" crossorigin="anonymous" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.2/font/bootstrap-icons.css" />
@@ -91,10 +83,10 @@ if($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="card rounded shadow-sm mx-auto my-4" style="max-width: 500px;">
         <div class="card-body">
             <h5 class="card-title text-center mb-3 py-3 border-bottom">
-                Sign Up a New Account
+                Login To Your Account
             </h5>
-            <!-- sign up form-->
-            <form action="<?php $_SERVER['REQUEST_URI']; ?>" method="POST">
+            <!-- login form-->
+            <form action="<?php echo $_SERVER['REQUEST_URI']; ?>" method="POST">
                 <div class="mb-3">
                     <label for="email" class="form-label">Email address</label>
                     <input type="email" class="form-control" id="email" name="email" />
@@ -103,22 +95,19 @@ if($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <label for="password" class="form-label">Password</label>
                     <input type="password" class="form-control" id="password" name="password" />
                 </div>
-                <div class="mb-3">
-                    <label for="confirm_password" class="form-label">Confirm Password</label>
-                    <input type="password" class="form-control" id="confirm_password" name="confirm_password" />
-                </div>
                 <div class="d-grid">
-                    <button type="submit" class="btn btn-primary btn-fu">
-                        Sign Up
-                    </button>
+                    <button type="submit" class="btn btn-primary btn-fu">Login</button>
                 </div>
+                <input type="hidden"
+                name="login_csrf_token"
+                value="<?php echo $_SESSION['login_csrf_token']; ?>"
+                >
             </form>
         </div>
     </div>
-
     <!-- Go back link -->
     <div class="text-center">
-        <a href="index.php" class="text-decoration-none"><i class="bi bi-arrow-left-circle"></i> Go back</a>
+        <a href="/" class="text-decoration-none"><i class="bi bi-arrow-left-circle"></i> Go back</a>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"
